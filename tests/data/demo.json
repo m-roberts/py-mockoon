@@ -1,0 +1,70 @@
+{
+  "uuid": "f10ddf16-4b41-457f-906b-64beeba94d63",
+  "lastMigration": 24,
+  "name": "Demo Mockoon Server",
+  "endpointPrefix": "",
+  "latency": 0,
+  "port": 3000,
+  "hostname": "",
+  "routes": [
+    {
+      "uuid": "9202536a-7c19-492d-a5cd-e7d1b9526bed",
+      "documentation": "",
+      "method": "get",
+      "endpoint": "hello",
+      "responses": [
+        {
+          "uuid": "53791854-64c9-4af9-99b5-e9fd1dfcbcdf",
+          "body": "{\"Hello\": \"World\"}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "",
+          "headers": [],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true
+        }
+      ],
+      "enabled": true,
+      "responseMode": null
+    }
+  ],
+  "proxyMode": true,
+  "proxyHost": "https://api.iterable.com",
+  "proxyRemovePrefix": false,
+  "tlsOptions": {
+    "enabled": false,
+    "type": "CERT",
+    "pfxPath": "",
+    "certPath": "",
+    "keyPath": "",
+    "caPath": "",
+    "passphrase": ""
+  },
+  "cors": true,
+  "headers": [
+    {
+      "key": "Content-Type",
+      "value": "application/json"
+    }
+  ],
+  "proxyReqHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "proxyResHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "data": []
+}
