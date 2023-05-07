@@ -1,4 +1,16 @@
-ignore = ["E501"]
+select = ["ALL"]
+
+ignore = [
+  "ANN",
+  "BLE001",
+  "D",
+  "E501",
+  "G004",
+  "S101",
+  "S603",
+  "S607",
+  "TRY002"
+]
 
 [per-file-ignores]
 "__init__.py" = ["F401"]

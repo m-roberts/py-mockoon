@@ -10,7 +10,7 @@ class Request:
     method: str
     params: dict[str, str]
     query: str
-    queryParams: dict[str, str]
+    queryParams: dict[str, str]  # noqa: N815
     route: str
     urlPath: str  # noqa: N815
 
@@ -32,5 +32,8 @@ class Request:
         query_params = list_of_dicts_to_dict(_query_params_list)
 
         return cls(
-            headers=headers, params=params, queryParams=query_params, **log_entry
+            headers=headers,
+            params=params,
+            queryParams=query_params,
+            **log_entry,
         )
