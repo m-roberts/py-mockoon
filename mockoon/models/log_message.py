@@ -1,10 +1,9 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 from .transaction import Transaction
 
 
-@dataclass
-class LogMessage:
+class LogMessage(BaseModel):
     level: str
     message: str
     timestamp: str

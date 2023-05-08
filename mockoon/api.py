@@ -1,15 +1,10 @@
 from abc import ABC, abstractmethod
 
 from .assertion import MockoonTransactionAssertion
-from .controllers import (
-    MockoonHttpTransactionController,
-    MockoonLoggingController,
-    MockoonServerController,
-    MockoonStateController,
-    MockoonTransactionController,
-)
-from .resources.request import Request
-from .resources.transaction import Transaction
+from .controllers import (MockoonHttpTransactionController,
+                          MockoonLoggingController, MockoonServerController,
+                          MockoonStateController, MockoonTransactionController)
+from .models import Request, Transaction
 from .server import MockoonServer
 
 

@@ -12,7 +12,7 @@ from watchdog.observers import Observer
 from watchdog.observers.polling import PollingObserver
 
 from .file_handlers import LogFileEventHandler, WaitForFileCreationHandler
-from .resources import LogMessage
+from .models import LogMessage
 
 logger = getLogger(__name__)
 
@@ -186,7 +186,7 @@ class MockoonServer:
             log_message = LogMessage.from_log_entry(log_entry)
 
             if transaction := log_message.transaction:
-                logger.info("Transaction received")
+                logger.info(f"Transaction received: {transaction}")
 
                 # Add 'received request' event for each route
                 #   so that tests can wait for logs to be written

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from .resources.request import Request
+from .models import Request
 from .server import MockoonServer
 
 
