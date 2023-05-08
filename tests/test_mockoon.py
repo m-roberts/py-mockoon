@@ -4,12 +4,12 @@ from http import HTTPStatus
 import pytest
 import requests
 
-from mockoon import MockoonServer, Request  # , Response
+from mockoon import MockoonAPI, Request  # , Response
 
 
 @pytest.fixture(scope="module", params=[True, False])
 def demo_mock_server(request):
-    with MockoonServer(
+    with MockoonAPI(
         data_file=f"{pathlib.Path(__file__).parent.resolve()}/data/demo.json",
         use_docker=request.param,
     ) as server:

@@ -1,4 +1,5 @@
 import json
+from abc import ABC, abstractmethod
 from logging import getLogger
 from pathlib import Path
 from queue import Empty, Queue
@@ -7,69 +8,56 @@ from subprocess import DEVNULL, PIPE, Popen, run
 from threading import Event, Thread
 from time import sleep, time
 
-from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 from watchdog.observers.polling import PollingObserver
 
-from .resources import LogMessage, Request
+from .file_handlers import LogFileEventHandler, WaitForFileCreationHandler
+from .resources import LogMessage
 
 logger = getLogger(__name__)
 
 
-class WaitForFileCreationHandler(FileSystemEventHandler):
-    """Event handler that stops an observer when a specific file is created."""
+class Server(ABC):
+    @abstractmethod
+    def __enter__(self):
+        ...
 
-    def __init__(self, observer: Observer, target_file: Path) -> None:
-        """Initialize a new WaitForFileCreationHandler instance.
+    @abstractmethod
+    def __exit__(self, exc_type, exc_value, traceback):
+        ...
 
-        Parameters
-        ----------
-        observer (Observer): The observer to stop when the target file is created.
-        target_file (Path): The file to watch for creation.
-        """
-        self.observer = observer
-        self.target_file = target_file
+    @abstractmethod
+    def start(self):
+        ...
 
-    def on_created(self, event):
-        """Handle the file creation event."""
-        if str(event.src_path) == str(self.target_file):
-            logger.info(f"{self.target_file} has been created.")
-            self.observer.stop()
+    @abstractmethod
+    def wait_for_active(self):
+        ...
 
+    @abstractmethod
+    def wait_for_route_hit(self, route: str):
+        ...
 
-class LogFileEventHandler(FileSystemEventHandler):
-    """Event handler for processing log files."""
+    @abstractmethod
+    def stop(self):
+        ...
 
-    def __init__(self, callback, target_file: Path) -> None:
-        """Initialize a new LogFileEventHandler instance.
+    @property
+    @abstractmethod
+    def root_uri(self):
+        ...
 
-        Parameters
-        ----------
-        callback (callable): The function to call when processing a log line.
-        target_file (Path): The log file to watch for changes.
-        """
-        self.callback = callback
-        self.target_file = target_file
+    @property
+    @abstractmethod
+    def transactions(self):
+        ...
 
-    def initial_read(self):
-        """Read and process the initial content of the log file."""
-        with self.target_file.open() as file:
-            content = file.readlines()
-            for line in content:
-                self.callback(line)
-
-    def on_modified(self, event):
-        """Handle the file modification event."""
-        if str(event.src_path) == str(self.target_file):
-            with Path(event.src_path).open() as file:
-                content = file.readlines()
-                for line in content[-1:]:
-                    self.callback(line)
+    @abstractmethod
+    def reset_transactions(self):
+        ...
 
 
 class MockoonServer:
-    """A class for running a Mockoon server instance and interacting with its logs."""
-
     WAIT_TIMEOUT = 30
 
     def __init__(
@@ -266,6 +254,29 @@ class MockoonServer:
                 f"~/.mockoon-cli/logs/mockoon-{self.pname}-out.log",
             ).expanduser().unlink(missing_ok=True)
 
+    def start_log_stream(self):
+        if not self.log_streaming_thread or not self.log_streaming_thread.is_alive():
+            self.log_streaming_thread = Thread(
+                target=self._stream_logs,
+                args=[self._log_source()],
+            )
+            self.log_streaming_thread.start()
+
+    def stop_log_stream(self):
+        if self.log_streaming_thread and self.log_streaming_thread.is_alive():
+            self.stop_event.set()
+            self.log_streaming_thread.join()
+
+    def _log_source(self):
+        if self.use_docker:
+            src = Popen(["docker", "logs", "-f", "mockoon-cli"], stdout=PIPE)
+        else:
+            src = Path(
+                f"~/.mockoon-cli/logs/mockoon-{self.pname}-out.log",
+            ).expanduser()
+
+        return src
+
     def start(self):
         """Start the mock API.
 
@@ -330,7 +341,10 @@ class MockoonServer:
         timeout_time = start_time + wait_timeout
 
         while True:
-            if not self.log_streaming_thread.is_alive():
+            if (
+                not self.log_streaming_thread
+                or not self.log_streaming_thread.is_alive()
+            ):
                 msg = "Server thread is not alive."
                 raise Exception(msg)
 
@@ -384,129 +398,3 @@ class MockoonServer:
     def reset_transactions(self):
         """Reset the transactions list."""
         self.log_messages = []
-
-    @property
-    def call_count(self):
-        """Return the number of calls to the mock server."""
-        return len(self.transactions)
-
-    @property
-    def called(self):
-        """Return True if the mock server was called at least once, False otherwise."""
-        return bool(self.transactions)
-
-    @property
-    def call_request(self):
-        """Return the last request to the mock server."""
-        return self.transactions[-1].request if self.transactions else None
-
-    @property
-    def call_requests_list(self):
-        """Return the list of requests to the mock server."""
-        return [t.request for t in self.transactions]
-
-    def assert_not_called(self):
-        """Assert the mock server was never called."""
-        assert not self.called
-
-    def assert_called(self):
-        """Assert the mock server was called at least once."""
-        assert self.called
-
-    def assert_called_once(self):
-        """Assert the mock server was called exactly once."""
-        assert self.call_count == 1
-
-    def _get_no_of_calls_with_request(self, request):
-        """Return the number of calls that the server has that matches a request."""
-        return self.call_requests_list.count(request)
-
-    def assert_called_once_with(self, request):
-        """Assert the mock server was called exactly once with the specified arguments."""
-        assert self._get_no_of_calls_with_request(request) == 1
-
-    def assert_called_with(self, request):
-        """Assert the mock server was last called with the specified arguments."""
-        assert self._get_no_of_calls_with_request(request) > 0
-
-    def assert_has_calls(self, requests: list[Request], *, any_order=False):
-        """Assert the mock server has been called with the specified calls."""
-        if any_order:
-            remaining_requests = self.call_requests_list.copy()
-            for request in requests:
-                if request in remaining_requests:
-                    remaining_requests.remove(request)
-                else:
-                    msg = f"Expected call not found: {request}"
-                    raise AssertionError(msg)
-        else:
-            matched_request_count = 0
-            for actual_request in self.call_requests_list:
-                if requests[matched_request_count] == actual_request:
-                    matched_request_count += 1
-                    if matched_request_count == len(requests):
-                        break
-
-            if matched_request_count != len(requests):
-                msg = f"Expected calls {requests} not found in the same order in {self.call_requests_list}"
-                raise AssertionError(
-                    msg,
-                )
-
-    def _request_matches(self, actual_request, **kwargs):
-        """Check if the actual request matches the specified properties."""
-        for key, value in kwargs.items():
-            if (
-                not hasattr(actual_request, key)
-                or getattr(actual_request, key) != value
-            ):
-                return False
-        return True
-
-    def _get_no_of_calls_with_properties(self, **kwargs):
-        """Return the number of calls that the server has that matches the specified properties."""
-        return sum(
-            1
-            for request in self.call_requests_list
-            if self._request_matches(request, **kwargs)
-        )
-
-    def assert_called_once_with_properties(self, **kwargs):
-        """Assert the mock server was called exactly once with the specified properties."""
-        assert self._get_no_of_calls_with_properties(**kwargs) == 1
-
-    def assert_called_with_properties(self, **kwargs):
-        """Assert the mock server was last called with the specified properties."""
-        assert self._get_no_of_calls_with_properties(**kwargs) > 0
-
-    def assert_has_calls_with_properties(self, calls, *, any_order=False):
-        """Assert the mock server has been called with the specified calls, each containing the specified properties."""
-        if any_order:
-            remaining_requests = self.call_requests_list.copy()
-            for call in calls:
-                matching_request = next(
-                    (
-                        request
-                        for request in remaining_requests
-                        if self._request_matches(request, **call)
-                    ),
-                    None,
-                )
-                if matching_request:
-                    remaining_requests.remove(matching_request)
-                else:
-                    msg = f"Expected call not found: {call}"
-                    raise AssertionError(msg)
-        else:
-            matched_call_count = 0
-            for actual_request in self.call_requests_list:
-                if self._request_matches(actual_request, **calls[matched_call_count]):
-                    matched_call_count += 1
-                    if matched_call_count == len(calls):
-                        break
-
-            if matched_call_count != len(calls):
-                msg = f"Expected calls {calls} not found in the same order in {self.call_requests_list}"
-                raise AssertionError(
-                    msg,
-                )
